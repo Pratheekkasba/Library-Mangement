@@ -1,5 +1,5 @@
 import React, { Component } from "react";
-import { Container, Row, Jumbotron, Col } from "react-bootstrap";
+import { Jumbotron } from "react-bootstrap";
 
 export default class Welcome extends Component {
   render() {

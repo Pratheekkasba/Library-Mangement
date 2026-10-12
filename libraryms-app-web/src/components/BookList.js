@@ -2,7 +2,6 @@ import React, { Component } from "react";
 import { Card, Table, ButtonGroup, Button } from "react-bootstrap";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faCoffee,
   faEdit,
   faTrash,
   faList,
