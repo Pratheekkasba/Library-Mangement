@@ -1,5 +1,5 @@
 import React, { Component } from "react";
-import { Card, Form, Button, Col } from "react-bootstrap";
+import { Card, Form, Button, Col, Alert } from "react-bootstrap";
 import axios from "axios";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -10,7 +10,7 @@ import {
   faUndo,
 } from "@fortawesome/free-solid-svg-icons";
 import MyToast from "./MyToast";
-import API_BASE_URL from "../apiConfig";
+import { getApiUrl } from "../apiConfig";
 
 export default class Member extends Component {
   constructor(props) {
@@ -18,6 +18,8 @@ export default class Member extends Component {
     this.state = {
       ...this.initialState,
       show: false,
+      saving: false,
+      error: null,
     };
     this.memberChange = this.memberChange.bind(this);
     this.submitMember = this.submitMember.bind(this);
@@ -28,7 +30,7 @@ export default class Member extends Component {
     name: "",
     email: "",
     membershipDate: "",
-    membershipType: "",
+    membershipType: "Standard",
   };
 
   componentDidMount() {
@@ -39,8 +41,9 @@ export default class Member extends Component {
   }
 
   findMemberById = (memberId) => {
+    const apiUrl = getApiUrl();
     axios
-      .get(`${API_BASE_URL}/member/${memberId}`)
+      .get(`${apiUrl}/member/${memberId}`)
       .then((response) => {
         if (response.data != null) {
           this.setState({
@@ -48,12 +51,13 @@ export default class Member extends Component {
             name: response.data.name,
             email: response.data.email,
             membershipDate: response.data.membershipDate,
-            membershipType: response.data.membershipType,
+            membershipType: response.data.membershipType || "Standard",
           });
         }
       })
       .catch((error) => {
         console.error("Error - " + error);
+        this.setState({ error: "Could not load member: " + error.message });
       });
   };
 
@@ -73,6 +77,7 @@ export default class Member extends Component {
 
   submitMember = (event) => {
     event.preventDefault();
+    this.setState({ saving: true, error: null });
 
     const member = {
       name: this.state.name,
@@ -81,59 +86,93 @@ export default class Member extends Component {
       membershipType: this.state.membershipType,
     };
 
-    axios.post(`${API_BASE_URL}/member`, member).then((response) => {
-      if (response.data != null) {
-        this.setState({ show: true, method: "post" });
-        setTimeout(() => this.setState({ show: false }), 3000);
-        this.setState(this.initialState);
-      } else {
-        this.setState({ show: false });
-      }
-    });
+    const apiUrl = getApiUrl();
+    axios
+      .post(`${apiUrl}/member`, member)
+      .then((response) => {
+        if (response.data != null) {
+          this.setState({ show: true, method: "post", saving: false });
+          setTimeout(() => {
+            this.setState({ show: false });
+            this.props.history.push("/member/list");
+          }, 1500);
+        } else {
+          this.setState({ show: false, saving: false });
+        }
+      })
+      .catch((err) => {
+        console.error("Save member error:", err);
+        this.setState({
+          saving: false,
+          error: "Failed to save member: " + (err.response?.data?.message || err.message),
+        });
+      });
   };
 
   updateMember = (event) => {
     event.preventDefault();
+    this.setState({ saving: true, error: null });
 
     const member = {
+      id: this.state.id,
       name: this.state.name,
       email: this.state.email,
       membershipDate: this.state.membershipDate,
       membershipType: this.state.membershipType,
     };
 
+    const apiUrl = getApiUrl();
     axios
-      .put(`${API_BASE_URL}/member/${this.state.id}`, member)
+      .put(`${apiUrl}/member/${this.state.id}`, member)
       .then((response) => {
         if (response.data != null) {
-          this.setState({ show: true, method: "put" });
-          setTimeout(() => this.setState({ show: false }), 3000);
-          setTimeout(() => this.memberList(), 3000);
+          this.setState({ show: true, method: "put", saving: false });
+          setTimeout(() => {
+            this.setState({ show: false });
+            this.memberList();
+          }, 1500);
         } else {
-          this.setState({ show: false });
+          this.setState({ show: false, saving: false });
         }
+      })
+      .catch((err) => {
+        console.error("Update member error:", err);
+        this.setState({
+          saving: false,
+          error: "Failed to update member: " + (err.response?.data?.message || err.message),
+        });
       });
   };
 
   render() {
-    const { name, email, membershipDate, membershipType } = this.state;
+    const { name, email, membershipDate, membershipType, error, saving } = this.state;
     return (
-      <div>
+      <div className="mb-5">
         <div style={{ display: this.state.show ? "block" : "none" }}>
           <MyToast
             show={this.state.show}
             message={
               this.state.method === "put"
-                ? "Member was updated successfully."
-                : "Member was saved successfully."
+                ? "Member updated successfully."
+                : "Member registered successfully."
             }
             type={"success"}
           />
         </div>
-        <Card className={"border border-dark bg-dark text-white"}>
-          <Card.Header>
-            <FontAwesomeIcon icon={this.state.id ? faEdit : faPlusSquare} />{" "}
-            {this.state.id ? "Update Member" : "Add New Member"}
+
+        {error && (
+          <Alert variant="danger" dismissible onClose={() => this.setState({ error: null })}>
+            {error}
+          </Alert>
+        )}
+
+        <Card className="border-secondary bg-dark text-white shadow">
+          <Card.Header className="bg-dark border-secondary font-weight-bold">
+            <FontAwesomeIcon
+              icon={this.state.id ? faEdit : faPlusSquare}
+              className="mr-2 text-info"
+            />
+            {this.state.id ? "Update Member Details" : "Register New Library Member"}
           </Card.Header>
           <Form
             onReset={this.resetMember}
@@ -142,8 +181,8 @@ export default class Member extends Component {
           >
             <Card.Body>
               <Form.Row>
-                <Form.Group as={Col} controlId="formGridName">
-                  <Form.Label>Name</Form.Label>
+                <Form.Group as={Col} md={6} controlId="formGridName">
+                  <Form.Label>Full Name</Form.Label>
                   <Form.Control
                     required
                     autoComplete="off"
@@ -151,12 +190,12 @@ export default class Member extends Component {
                     name="name"
                     value={name}
                     onChange={this.memberChange}
-                    className={"bg-dark text-white"}
-                    placeholder="Enter Member Name"
+                    className="bg-secondary text-white border-0"
+                    placeholder="Enter Patron's Full Name"
                   />
                 </Form.Group>
-                <Form.Group as={Col} controlId="formGridEmail">
-                  <Form.Label>Email</Form.Label>
+                <Form.Group as={Col} md={6} controlId="formGridEmail">
+                  <Form.Label>Email Address</Form.Label>
                   <Form.Control
                     required
                     autoComplete="off"
@@ -164,13 +203,13 @@ export default class Member extends Component {
                     name="email"
                     value={email}
                     onChange={this.memberChange}
-                    className={"bg-dark text-white"}
-                    placeholder="Enter Member Email"
+                    className="bg-secondary text-white border-0"
+                    placeholder="patron@example.com"
                   />
                 </Form.Group>
               </Form.Row>
               <Form.Row>
-                <Form.Group as={Col} controlId="formGridMembershipDate">
+                <Form.Group as={Col} md={6} controlId="formGridMembershipDate">
                   <Form.Label>Membership Date</Form.Label>
                   <Form.Control
                     required
@@ -178,43 +217,46 @@ export default class Member extends Component {
                     name="membershipDate"
                     value={membershipDate}
                     onChange={this.memberChange}
-                    className={"bg-dark text-white"}
+                    className="bg-secondary text-white border-0"
                   />
                 </Form.Group>
-                <Form.Group as={Col} controlId="formGridMembershipType">
+                <Form.Group as={Col} md={6} controlId="formGridMembershipType">
                   <Form.Label>Membership Type</Form.Label>
                   <Form.Control
-                    required
                     as="select"
                     name="membershipType"
                     value={membershipType}
                     onChange={this.memberChange}
-                    className={"bg-dark text-white"}
+                    className="bg-secondary text-white border-0"
                   >
-                    <option value="">-- Select a Type --</option>
                     <option value="Standard">Standard</option>
-                    <option value="Premium">Premium</option>
                     <option value="Student">Student</option>
+                    <option value="Premium">Premium</option>
+                    <option value="Faculty">Faculty</option>
                   </Form.Control>
                 </Form.Group>
               </Form.Row>
             </Card.Body>
-            <Card.Footer style={{ textAlign: "right" }}>
-              <Button size="sm" variant="success" type="submit">
-                <FontAwesomeIcon icon={faSave} />{" "}
-                {this.state.id ? "Update" : "Save"}
-              </Button>{" "}
-              <Button size="sm" variant="info" type="reset">
-                <FontAwesomeIcon icon={faUndo} /> Reset
-              </Button>{" "}
+            <Card.Footer className="bg-dark border-secondary d-flex justify-content-between">
               <Button
                 size="sm"
-                variant="info"
+                variant="outline-secondary"
                 type="button"
-                onClick={this.memberList.bind(this)}
+                onClick={this.memberList}
               >
-                <FontAwesomeIcon icon={faList} /> Member List
+                <FontAwesomeIcon icon={faList} className="mr-1" />
+                Back to Members
               </Button>
+              <div>
+                <Button size="sm" variant="outline-light" type="reset" className="mr-2">
+                  <FontAwesomeIcon icon={faUndo} className="mr-1" />
+                  Reset
+                </Button>
+                <Button size="sm" variant="info" type="submit" disabled={saving}>
+                  <FontAwesomeIcon icon={faSave} className="mr-1" />
+                  {saving ? "Saving..." : this.state.id ? "Update Member" : "Register Member"}
+                </Button>
+              </div>
             </Card.Footer>
           </Form>
         </Card>

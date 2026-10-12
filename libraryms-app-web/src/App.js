@@ -12,13 +12,10 @@ import Loan from "./components/Loan";
 import LoanList from "./components/LoanList";
 import Member from "./components/Member";
 import MemberList from "./components/MemberList";
-import Header from "./components/Header";
-
 function App() {
-  const marginTop = { marginTop: "20px" };
+  const marginTop = { marginTop: "30px", minHeight: "75vh" };
   return (
     <Router>
-      <Header />
       <NavigationBar />
       <Container>
         <Row>
@@ -38,8 +35,6 @@ function App() {
           </Col>
         </Row>
       </Container>
-      <p>Library Management System</p>
-
       <Footer />
     </Router>
   );

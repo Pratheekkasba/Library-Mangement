@@ -1,5 +1,5 @@
 import React, { Component } from "react";
-import { Card, Form, Button, Col } from "react-bootstrap";
+import { Card, Form, Button, Col, Alert } from "react-bootstrap";
 import axios from "axios";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -10,17 +10,22 @@ import {
   faUndo,
 } from "@fortawesome/free-solid-svg-icons";
 import MyToast from "./MyToast";
-import API_BASE_URL from "../apiConfig";
+import { getApiUrl } from "../apiConfig";
 
 export default class Book extends Component {
   constructor(props) {
     super(props);
 
-    this.state = this.initialState;
-    this.state.show = false;
+    this.state = {
+      ...this.initialState,
+      show: false,
+      saving: false,
+      error: null,
+    };
     this.bookChange = this.bookChange.bind(this);
     this.submitBook = this.submitBook.bind(this);
   }
+
   initialState = { id: "", title: "", author: "", isbn: "", rating: "" };
 
   componentDidMount() {
@@ -31,8 +36,9 @@ export default class Book extends Component {
   }
 
   findBookById = (bookId) => {
+    const apiUrl = getApiUrl();
     axios
-      .get(`${API_BASE_URL}/book/${bookId}`)
+      .get(`${apiUrl}/book/${bookId}`)
       .then((response) => {
         if (response.data != null) {
           this.setState({
@@ -46,6 +52,7 @@ export default class Book extends Component {
       })
       .catch((error) => {
         console.error("Error - " + error);
+        this.setState({ error: "Could not load book: " + error.message });
       });
   };
 
@@ -53,37 +60,38 @@ export default class Book extends Component {
     this.setState(() => this.initialState);
   };
 
-  //Submit book
   submitBook = (event) => {
-    /*  alert(
-      "Title: " +
-        this.state.title +
-        ", author: " +
-        this.state.author +
-        ", isbn: " +
-        this.state.isbn +
-        ", rating: " +
-        this.state.rating
-    ); */
     event.preventDefault();
+    this.setState({ saving: true, error: null });
 
     const book = {
       title: this.state.title,
       author: this.state.author,
       isbn: this.state.isbn,
-      rating: this.state.rating,
+      rating: parseInt(this.state.rating) || 0,
     };
 
-    axios.post(`${API_BASE_URL}/book`, book).then((response) => {
-      if (response.data != null) {
-        this.setState({ show: true, method: "post" });
-        setTimeout(() => this.setState({ show: false }), 3000);
-      } else {
-        this.setState({ show: false });
-      }
-    });
-
-    this.setState(this.initialState);
+    const apiUrl = getApiUrl();
+    axios
+      .post(`${apiUrl}/book`, book)
+      .then((response) => {
+        if (response.data != null) {
+          this.setState({ show: true, method: "post", saving: false });
+          setTimeout(() => {
+            this.setState({ show: false });
+            this.props.history.push("/list");
+          }, 1500);
+        } else {
+          this.setState({ show: false, saving: false });
+        }
+      })
+      .catch((err) => {
+        console.error("Save book error:", err);
+        this.setState({
+          saving: false,
+          error: "Failed to save book: " + (err.response?.data?.message || err.message),
+        });
+      });
   };
 
   bookChange = (event) => {
@@ -96,35 +104,45 @@ export default class Book extends Component {
     return this.props.history.push("/list");
   };
 
-  //update book using PUT
   updateBook = (event) => {
     event.preventDefault();
+    this.setState({ saving: true, error: null });
 
     const book = {
       id: this.state.id,
       title: this.state.title,
       author: this.state.author,
       isbn: this.state.isbn,
-      rating: this.state.rating,
+      rating: parseInt(this.state.rating) || 0,
     };
 
-    axios.put(`${API_BASE_URL}/book`, book).then((response) => {
-      if (response.data != null) {
-        this.setState({ show: true, method: "put" });
-        setTimeout(() => this.setState({ show: false }), 3000);
-        setTimeout(() => this.bookList(), 3000);
-      } else {
-        this.setState({ show: false });
-      }
-    });
-
-    this.setState(this.initialState);
+    const apiUrl = getApiUrl();
+    axios
+      .put(`${apiUrl}/book/${this.state.id}`, book)
+      .then((response) => {
+        if (response.data != null) {
+          this.setState({ show: true, method: "put", saving: false });
+          setTimeout(() => {
+            this.setState({ show: false });
+            this.bookList();
+          }, 1500);
+        } else {
+          this.setState({ show: false, saving: false });
+        }
+      })
+      .catch((err) => {
+        console.error("Update book error:", err);
+        this.setState({
+          saving: false,
+          error: "Failed to update book: " + (err.response?.data?.message || err.message),
+        });
+      });
   };
 
   render() {
-    const { title, author, isbn, rating } = this.state;
+    const { title, author, isbn, rating, error, saving } = this.state;
     return (
-      <div>
+      <div className="mb-5">
         <div style={{ display: this.state.show ? "block" : "none" }}>
           <MyToast
             show={this.state.show}
@@ -136,10 +154,20 @@ export default class Book extends Component {
             type={"success"}
           />
         </div>
-        <Card className={"border border-dark bg-dark text-white"}>
-          <Card.Header>
-            <FontAwesomeIcon icon={this.state.id ? faEdit : faPlusSquare} />
-            {this.state.id ? "Update Book" : "Add New Book"}
+
+        {error && (
+          <Alert variant="danger" dismissible onClose={() => this.setState({ error: null })}>
+            {error}
+          </Alert>
+        )}
+
+        <Card className="border-secondary bg-dark text-white shadow">
+          <Card.Header className="bg-dark border-secondary font-weight-bold">
+            <FontAwesomeIcon
+              icon={this.state.id ? faEdit : faPlusSquare}
+              className="mr-2 text-info"
+            />
+            {this.state.id ? "Update Book Details" : "Add New Book to Library"}
           </Card.Header>
           <Form
             onReset={this.resetBook}
@@ -148,81 +176,87 @@ export default class Book extends Component {
           >
             <Card.Body>
               <Form.Row>
-                <Form.Group as={Col} controlId="formGridTitle">
-                  <Form.Label>Title</Form.Label>
+                <Form.Group as={Col} md={6} controlId="formGridTitle">
+                  <Form.Label>Book Title</Form.Label>
                   <Form.Control
                     required
                     autoComplete="off"
-                    type="test"
+                    type="text"
                     name="title"
                     value={title}
                     onChange={this.bookChange}
-                    className={"bg-dark text-white"}
-                    placeholder="Enter Book Title"
+                    className="bg-secondary text-white border-0"
+                    placeholder="e.g. Clean Code"
                   />
                 </Form.Group>
-                <Form.Group as={Col} controlId="formGridAuthor">
-                  <Form.Label>Author</Form.Label>
+                <Form.Group as={Col} md={6} controlId="formGridAuthor">
+                  <Form.Label>Author Name</Form.Label>
                   <Form.Control
                     required
                     autoComplete="off"
-                    type="test"
+                    type="text"
                     name="author"
                     value={author}
                     onChange={this.bookChange}
-                    className={"bg-dark text-white"}
-                    placeholder="Enter Book Author"
+                    className="bg-secondary text-white border-0"
+                    placeholder="e.g. Robert C. Martin"
                   />
                 </Form.Group>
               </Form.Row>
               <Form.Row>
-                <Form.Group as={Col} controlId="formGridIsbn">
-                  <Form.Label>Isbn</Form.Label>
+                <Form.Group as={Col} md={6} controlId="formGridIsbn">
+                  <Form.Label>ISBN Number</Form.Label>
                   <Form.Control
                     required
                     autoComplete="off"
-                    type="test"
+                    type="text"
                     name="isbn"
                     value={isbn}
                     onChange={this.bookChange}
-                    className={"bg-dark text-white"}
-                    placeholder="Enter Book ISBN"
+                    className="bg-secondary text-white border-0"
+                    placeholder="e.g. 9780132350884"
                   />
                 </Form.Group>
-                <Form.Group as={Col} controlId="formGridRating">
-                  <Form.Label>Rating</Form.Label>
+                <Form.Group as={Col} md={6} controlId="formGridRating">
+                  <Form.Label>Rating (1 to 5)</Form.Label>
                   <Form.Control
                     required
-                    autoComplete="off"
-                    type="test"
+                    as="select"
                     name="rating"
                     value={rating}
                     onChange={this.bookChange}
-                    className={"bg-dark text-white"}
-                    placeholder="Enter Book Rating"
-                  />
+                    className="bg-secondary text-white border-0"
+                  >
+                    <option value="">Select Rating</option>
+                    <option value="5">????? (5 - Excellent)</option>
+                    <option value="4">????? (4 - Very Good)</option>
+                    <option value="3">????? (3 - Good)</option>
+                    <option value="2">????? (2 - Fair)</option>
+                    <option value="1">????? (1 - Poor)</option>
+                  </Form.Control>
                 </Form.Group>
               </Form.Row>
             </Card.Body>
-            <Card.Footer style={{ textAlign: "right" }}>
-              <Button size="sm" variant="success" type="submit">
-                <FontAwesomeIcon icon={faSave} />{" "}
-                {this.state.id ? "Update" : "Save"}
-                {""}
-              </Button>{" "}
-              <Button size="sm" variant="info" type="reset">
-                <FontAwesomeIcon icon={faUndo} />
-                Reset
-              </Button>{" "}
+            <Card.Footer className="bg-dark border-secondary d-flex justify-content-between">
               <Button
                 size="sm"
-                variant="info"
+                variant="outline-secondary"
                 type="button"
-                onClick={this.bookList.bind()}
+                onClick={this.bookList}
               >
-                <FontAwesomeIcon icon={faList} />
-                Book List
+                <FontAwesomeIcon icon={faList} className="mr-1" />
+                Back to List
               </Button>
+              <div>
+                <Button size="sm" variant="outline-light" type="reset" className="mr-2">
+                  <FontAwesomeIcon icon={faUndo} className="mr-1" />
+                  Reset
+                </Button>
+                <Button size="sm" variant="primary" type="submit" disabled={saving}>
+                  <FontAwesomeIcon icon={faSave} className="mr-1" />
+                  {saving ? "Saving..." : this.state.id ? "Update Book" : "Save Book"}
+                </Button>
+              </div>
             </Card.Footer>
           </Form>
         </Card>

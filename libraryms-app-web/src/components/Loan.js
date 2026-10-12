@@ -1,5 +1,5 @@
 import React, { Component } from "react";
-import { Card, Form, Button, Col } from "react-bootstrap";
+import { Card, Form, Button, Col, Alert } from "react-bootstrap";
 import axios from "axios";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -10,7 +10,7 @@ import {
   faUndo,
 } from "@fortawesome/free-solid-svg-icons";
 import MyToast from "./MyToast";
-import API_BASE_URL from "../apiConfig";
+import { getApiUrl } from "../apiConfig";
 
 export default class Loan extends Component {
   constructor(props) {
@@ -20,6 +20,8 @@ export default class Loan extends Component {
       show: false,
       books: [],
       members: [],
+      saving: false,
+      error: null,
     };
     this.loanChange = this.loanChange.bind(this);
     this.submitLoan = this.submitLoan.bind(this);
@@ -35,16 +37,17 @@ export default class Loan extends Component {
   };
 
   componentDidMount() {
-    // Fetch books and members to populate the dropdowns
+    const apiUrl = getApiUrl();
     axios
-      .get(`${API_BASE_URL}/books`)
-      .then((response) => this.setState({ books: response.data }));
+      .get(`${apiUrl}/books`)
+      .then((response) => this.setState({ books: Array.isArray(response.data) ? response.data : [] }))
+      .catch((e) => console.error("Books load error:", e));
 
     axios
-      .get(`${API_BASE_URL}/members`)
-      .then((response) => this.setState({ members: response.data }));
+      .get(`${apiUrl}/members`)
+      .then((response) => this.setState({ members: Array.isArray(response.data) ? response.data : [] }))
+      .catch((e) => console.error("Members load error:", e));
 
-    // If editing, load the existing loan
     const loanId = +this.props.match.params.id;
     if (loanId) {
       this.findLoanById(loanId);
@@ -52,22 +55,24 @@ export default class Loan extends Component {
   }
 
   findLoanById = (loanId) => {
+    const apiUrl = getApiUrl();
     axios
-      .get(`${API_BASE_URL}/loan/${loanId}`)
+      .get(`${apiUrl}/loan/${loanId}`)
       .then((response) => {
         if (response.data != null) {
           this.setState({
             id: response.data.id,
-            bookId: response.data.book.id,
-            memberId: response.data.member.id,
-            checkoutDate: response.data.checkoutDate,
-            dueDate: response.data.dueDate,
+            bookId: response.data.book?.id || "",
+            memberId: response.data.member?.id || "",
+            checkoutDate: response.data.checkoutDate || "",
+            dueDate: response.data.dueDate || "",
             returnDate: response.data.returnDate || "",
           });
         }
       })
       .catch((error) => {
         console.error("Error - " + error);
+        this.setState({ error: "Could not load loan details: " + error.message });
       });
   };
 
@@ -87,69 +92,103 @@ export default class Loan extends Component {
 
   submitLoan = (event) => {
     event.preventDefault();
+    this.setState({ saving: true, error: null });
 
     const loan = {
-      bookId: this.state.bookId,
-      memberId: this.state.memberId,
+      bookId: parseInt(this.state.bookId),
+      memberId: parseInt(this.state.memberId),
       checkoutDate: this.state.checkoutDate,
       dueDate: this.state.dueDate,
       returnDate: this.state.returnDate || null,
     };
 
-    axios.post(`${API_BASE_URL}/loan`, loan).then((response) => {
-      if (response.data != null) {
-        this.setState({ show: true, method: "post" });
-        setTimeout(() => this.setState({ show: false }), 3000);
-        this.setState(this.initialState);
-      } else {
-        this.setState({ show: false });
-      }
-    });
+    const apiUrl = getApiUrl();
+    axios
+      .post(`${apiUrl}/loan`, loan)
+      .then((response) => {
+        if (response.data != null) {
+          this.setState({ show: true, method: "post", saving: false });
+          setTimeout(() => {
+            this.setState({ show: false });
+            this.props.history.push("/loan/list");
+          }, 1500);
+        } else {
+          this.setState({ show: false, saving: false });
+        }
+      })
+      .catch((err) => {
+        console.error("Save loan error:", err);
+        this.setState({
+          saving: false,
+          error: "Failed to issue loan: " + (err.response?.data?.message || err.message),
+        });
+      });
   };
 
   updateLoan = (event) => {
     event.preventDefault();
+    this.setState({ saving: true, error: null });
 
     const loan = {
-      bookId: this.state.bookId,
-      memberId: this.state.memberId,
+      bookId: parseInt(this.state.bookId),
+      memberId: parseInt(this.state.memberId),
       checkoutDate: this.state.checkoutDate,
       dueDate: this.state.dueDate,
       returnDate: this.state.returnDate || null,
     };
 
+    const apiUrl = getApiUrl();
     axios
-      .put(`${API_BASE_URL}/loan/${this.state.id}`, loan)
+      .put(`${apiUrl}/loan/${this.state.id}`, loan)
       .then((response) => {
         if (response.data != null) {
-          this.setState({ show: true, method: "put" });
-          setTimeout(() => this.setState({ show: false }), 3000);
-          setTimeout(() => this.loanList(), 3000);
+          this.setState({ show: true, method: "put", saving: false });
+          setTimeout(() => {
+            this.setState({ show: false });
+            this.loanList();
+          }, 1500);
         } else {
-          this.setState({ show: false });
+          this.setState({ show: false, saving: false });
         }
+      })
+      .catch((err) => {
+        console.error("Update loan error:", err);
+        this.setState({
+          saving: false,
+          error: "Failed to update loan: " + (err.response?.data?.message || err.message),
+        });
       });
   };
 
   render() {
-    const { bookId, memberId, checkoutDate, dueDate, returnDate } = this.state;
+    const { bookId, memberId, checkoutDate, dueDate, returnDate, error, saving, books, members } = this.state;
     return (
-      <div>
+      <div className="mb-5">
         <div style={{ display: this.state.show ? "block" : "none" }}>
           <MyToast
             show={this.state.show}
             message={
               this.state.method === "put"
-                ? "Loan was updated successfully."
-                : "Loan was saved successfully."
+                ? "Loan record updated successfully."
+                : "Book loan issued successfully."
             }
             type={"success"}
           />
         </div>
-        <Card className={"border border-dark bg-dark text-white"}>
-          <Card.Header>
-            <FontAwesomeIcon icon={this.state.id ? faEdit : faPlusSquare} />{" "}
-            {this.state.id ? "Update Loan" : "Add New Loan"}
+
+        {error && (
+          <Alert variant="danger" dismissible onClose={() => this.setState({ error: null })}>
+            {error}
+          </Alert>
+        )}
+
+        <Card className="border-secondary bg-dark text-white shadow">
+          <Card.Header className="bg-dark border-secondary font-weight-bold">
+            <FontAwesomeIcon
+              icon={this.state.id ? faEdit : faPlusSquare}
+              className="mr-2 text-info"
+            />
+            {this.state.id ? "Update Loan Record" : "Issue New Book Loan"}
           </Card.Header>
           <Form
             onReset={this.resetLoan}
@@ -158,45 +197,55 @@ export default class Loan extends Component {
           >
             <Card.Body>
               <Form.Row>
-                <Form.Group as={Col} controlId="formGridBook">
-                  <Form.Label>Book</Form.Label>
+                <Form.Group as={Col} md={6} controlId="formGridBook">
+                  <Form.Label>Select Book</Form.Label>
                   <Form.Control
                     required
                     as="select"
                     name="bookId"
                     value={bookId}
                     onChange={this.loanChange}
-                    className={"bg-dark text-white"}
+                    className="bg-secondary text-white border-0"
                   >
-                    <option value="">-- Select a Book --</option>
-                    {this.state.books.map((book) => (
-                      <option key={book.id} value={book.id}>
-                        {book.title}
+                    <option value="">-- Choose Book from Catalog --</option>
+                    {books.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.title} (by {b.author})
                       </option>
                     ))}
                   </Form.Control>
+                  {books.length === 0 && (
+                    <Form.Text className="text-warning">
+                      No books available. Please add a book first.
+                    </Form.Text>
+                  )}
                 </Form.Group>
-                <Form.Group as={Col} controlId="formGridMember">
-                  <Form.Label>Member</Form.Label>
+                <Form.Group as={Col} md={6} controlId="formGridMember">
+                  <Form.Label>Select Borrower / Member</Form.Label>
                   <Form.Control
                     required
                     as="select"
                     name="memberId"
                     value={memberId}
                     onChange={this.loanChange}
-                    className={"bg-dark text-white"}
+                    className="bg-secondary text-white border-0"
                   >
-                    <option value="">-- Select a Member --</option>
-                    {this.state.members.map((member) => (
-                      <option key={member.id} value={member.id}>
-                        {member.name}
+                    <option value="">-- Choose Member --</option>
+                    {members.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.email})
                       </option>
                     ))}
                   </Form.Control>
+                  {members.length === 0 && (
+                    <Form.Text className="text-warning">
+                      No members registered. Please add a member first.
+                    </Form.Text>
+                  )}
                 </Form.Group>
               </Form.Row>
               <Form.Row>
-                <Form.Group as={Col} controlId="formGridCheckoutDate">
+                <Form.Group as={Col} md={4} controlId="formGridCheckoutDate">
                   <Form.Label>Checkout Date</Form.Label>
                   <Form.Control
                     required
@@ -204,10 +253,10 @@ export default class Loan extends Component {
                     name="checkoutDate"
                     value={checkoutDate}
                     onChange={this.loanChange}
-                    className={"bg-dark text-white"}
+                    className="bg-secondary text-white border-0"
                   />
                 </Form.Group>
-                <Form.Group as={Col} controlId="formGridDueDate">
+                <Form.Group as={Col} md={4} controlId="formGridDueDate">
                   <Form.Label>Due Date</Form.Label>
                   <Form.Control
                     required
@@ -215,37 +264,41 @@ export default class Loan extends Component {
                     name="dueDate"
                     value={dueDate}
                     onChange={this.loanChange}
-                    className={"bg-dark text-white"}
+                    className="bg-secondary text-white border-0"
                   />
                 </Form.Group>
-                <Form.Group as={Col} controlId="formGridReturnDate">
-                  <Form.Label>Return Date</Form.Label>
+                <Form.Group as={Col} md={4} controlId="formGridReturnDate">
+                  <Form.Label>Return Date (Optional)</Form.Label>
                   <Form.Control
                     type="date"
                     name="returnDate"
                     value={returnDate}
                     onChange={this.loanChange}
-                    className={"bg-dark text-white"}
+                    className="bg-secondary text-white border-0"
                   />
                 </Form.Group>
               </Form.Row>
             </Card.Body>
-            <Card.Footer style={{ textAlign: "right" }}>
-              <Button size="sm" variant="success" type="submit">
-                <FontAwesomeIcon icon={faSave} />{" "}
-                {this.state.id ? "Update" : "Save"}
-              </Button>{" "}
-              <Button size="sm" variant="info" type="reset">
-                <FontAwesomeIcon icon={faUndo} /> Reset
-              </Button>{" "}
+            <Card.Footer className="bg-dark border-secondary d-flex justify-content-between">
               <Button
                 size="sm"
-                variant="info"
+                variant="outline-secondary"
                 type="button"
-                onClick={this.loanList.bind(this)}
+                onClick={this.loanList}
               >
-                <FontAwesomeIcon icon={faList} /> Loan List
+                <FontAwesomeIcon icon={faList} className="mr-1" />
+                Back to Loans
               </Button>
+              <div>
+                <Button size="sm" variant="outline-light" type="reset" className="mr-2">
+                  <FontAwesomeIcon icon={faUndo} className="mr-1" />
+                  Reset
+                </Button>
+                <Button size="sm" variant="success" type="submit" disabled={saving}>
+                  <FontAwesomeIcon icon={faSave} className="mr-1" />
+                  {saving ? "Processing..." : this.state.id ? "Update Loan" : "Issue Loan"}
+                </Button>
+              </div>
             </Card.Footer>
           </Form>
         </Card>
