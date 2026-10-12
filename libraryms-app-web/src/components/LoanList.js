@@ -5,6 +5,7 @@ import { faEdit, faTrash, faList } from "@fortawesome/free-solid-svg-icons";
 import axios from "axios";
 import MyToast from "./MyToast";
 import { Link } from "react-router-dom";
+import API_BASE_URL from "../apiConfig";
 
 export default class LoanList extends Component {
   constructor(props) {
@@ -16,13 +17,13 @@ export default class LoanList extends Component {
   }
 
   componentDidMount() {
-    fetch("http://localhost:8080/loans")
+    fetch(`${API_BASE_URL}/loans`)
       .then((response) => response.json())
       .then((data) => this.setState({ loans: data }));
   }
 
   deleteLoan = (loanId) => {
-    axios.delete("http://localhost:8080/loan/" + loanId).then((response) => {
+    axios.delete(`${API_BASE_URL}/loan/${loanId}`).then((response) => {
       if (response.status === 200) {
         this.setState({ show: true });
         setTimeout(() => this.setState({ show: false }), 3000);

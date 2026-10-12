@@ -10,6 +10,7 @@ import {
   faUndo,
 } from "@fortawesome/free-solid-svg-icons";
 import MyToast from "./MyToast";
+import API_BASE_URL from "../apiConfig";
 
 export default class Loan extends Component {
   constructor(props) {
@@ -36,11 +37,11 @@ export default class Loan extends Component {
   componentDidMount() {
     // Fetch books and members to populate the dropdowns
     axios
-      .get("http://localhost:8080/books")
+      .get(`${API_BASE_URL}/books`)
       .then((response) => this.setState({ books: response.data }));
 
     axios
-      .get("http://localhost:8080/members")
+      .get(`${API_BASE_URL}/members`)
       .then((response) => this.setState({ members: response.data }));
 
     // If editing, load the existing loan
@@ -52,7 +53,7 @@ export default class Loan extends Component {
 
   findLoanById = (loanId) => {
     axios
-      .get("http://localhost:8080/loan/" + loanId)
+      .get(`${API_BASE_URL}/loan/${loanId}`)
       .then((response) => {
         if (response.data != null) {
           this.setState({
@@ -95,7 +96,7 @@ export default class Loan extends Component {
       returnDate: this.state.returnDate || null,
     };
 
-    axios.post("http://localhost:8080/loan", loan).then((response) => {
+    axios.post(`${API_BASE_URL}/loan`, loan).then((response) => {
       if (response.data != null) {
         this.setState({ show: true, method: "post" });
         setTimeout(() => this.setState({ show: false }), 3000);
@@ -118,7 +119,7 @@ export default class Loan extends Component {
     };
 
     axios
-      .put("http://localhost:8080/loan/" + this.state.id, loan)
+      .put(`${API_BASE_URL}/loan/${this.state.id}`, loan)
       .then((response) => {
         if (response.data != null) {
           this.setState({ show: true, method: "put" });

@@ -13,8 +13,8 @@ target/
 # Spring Boot / Configuration
 #################################
 
-# Ignore environment-specific config
-libraryms-app-rest/src/main/resources/application.properties
+# Environment configs can be overridden via ENV vars
+# libraryms-app-rest/src/main/resources/application.properties
 
 #################################
 # Node / React

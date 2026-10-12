@@ -5,6 +5,7 @@ import { faEdit, faTrash, faList } from "@fortawesome/free-solid-svg-icons";
 import axios from "axios";
 import MyToast from "./MyToast";
 import { Link } from "react-router-dom";
+import API_BASE_URL from "../apiConfig";
 
 export default class MemberList extends Component {
   constructor(props) {
@@ -16,13 +17,13 @@ export default class MemberList extends Component {
   }
 
   componentDidMount() {
-    fetch("http://localhost:8080/members")
+    fetch(`${API_BASE_URL}/members`)
       .then((response) => response.json())
       .then((data) => this.setState({ members: data }));
   }
 
   deleteMember = (memberId) => {
-    axios.delete("http://localhost:8080/member/" + memberId).then((response) => {
+    axios.delete(`${API_BASE_URL}/member/${memberId}`).then((response) => {
       if (response.status === 200) {
         this.setState({ show: true });
         setTimeout(() => this.setState({ show: false }), 3000);

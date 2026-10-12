@@ -10,6 +10,7 @@ import {
   faUndo,
 } from "@fortawesome/free-solid-svg-icons";
 import MyToast from "./MyToast";
+import API_BASE_URL from "../apiConfig";
 
 export default class Member extends Component {
   constructor(props) {
@@ -39,7 +40,7 @@ export default class Member extends Component {
 
   findMemberById = (memberId) => {
     axios
-      .get("http://localhost:8080/member/" + memberId)
+      .get(`${API_BASE_URL}/member/${memberId}`)
       .then((response) => {
         if (response.data != null) {
           this.setState({
@@ -80,7 +81,7 @@ export default class Member extends Component {
       membershipType: this.state.membershipType,
     };
 
-    axios.post("http://localhost:8080/member", member).then((response) => {
+    axios.post(`${API_BASE_URL}/member`, member).then((response) => {
       if (response.data != null) {
         this.setState({ show: true, method: "post" });
         setTimeout(() => this.setState({ show: false }), 3000);
@@ -102,7 +103,7 @@ export default class Member extends Component {
     };
 
     axios
-      .put("http://localhost:8080/member/" + this.state.id, member)
+      .put(`${API_BASE_URL}/member/${this.state.id}`, member)
       .then((response) => {
         if (response.data != null) {
           this.setState({ show: true, method: "put" });

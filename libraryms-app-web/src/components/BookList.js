@@ -10,6 +10,7 @@ import {
 import axios from "axios";
 import MyToast from "./MyToast";
 import { Link } from "react-router-dom";
+import API_BASE_URL from "../apiConfig";
 
 export default class BookList extends Component {
   constructor(props) {
@@ -20,13 +21,13 @@ export default class BookList extends Component {
   }
 
   componentDidMount() {
-    fetch("http://localhost:8080/books")
+    fetch(`${API_BASE_URL}/books`)
       .then((response) => response.json())
       .then((data) => this.setState({ books: data }));
   }
 
   deleteBook = (bookId) => {
-    axios.delete("http://localhost:8080/book/" + bookId).then((response) => {
+    axios.delete(`${API_BASE_URL}/book/${bookId}`).then((response) => {
       if (response.data != null) {
         this.setState({ show: true });
         setTimeout(() => this.setState({ show: false }), 3000);
